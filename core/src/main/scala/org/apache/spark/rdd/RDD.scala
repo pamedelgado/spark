@@ -29,7 +29,7 @@ import org.apache.hadoop.io.BytesWritable
 import org.apache.hadoop.io.compress.CompressionCodec
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.io.Text
-import org.apache.hadoop.mapred.TextOutputFormat
+import org.apache.hadoop.mapred.{JobConf, TextOutputFormat}
 
 import org.apache.spark._
 import org.apache.spark.Partitioner._

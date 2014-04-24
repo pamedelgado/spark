@@ -33,6 +33,8 @@ import org.apache.hadoop.conf.{Configurable, Configuration}
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.io.SequenceFile.CompressionType
 import org.apache.hadoop.io.compress.CompressionCodec
+import org.apache.hadoop.io.Text
+import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapred.{FileOutputCommitter, FileOutputFormat, JobConf, OutputFormat}
 import org.apache.hadoop.mapreduce.{OutputFormat => NewOutputFormat, Job => NewAPIHadoopJob,
 RecordWriter => NewRecordWriter, SparkHadoopMapReduceUtil}
@@ -47,6 +49,7 @@ import org.apache.spark.SparkContext._
 import org.apache.spark.partial.{BoundedDouble, PartialResult}
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.util.SerializableHyperLogLog
+import org.apache.spark.output.RedisHashOutputFormat
 
 /**
  * Extra functions available on RDDs of (key, value) pairs through an implicit conversion.
@@ -775,6 +778,18 @@ class PairRDDFunctions[K, V](self: RDD[(K, V)])
 
     self.context.runJob(self, writeToFile _)
     writer.commitJob()
+  }
+
+  def saveToRedis(redisHosts: String, redisHostKey: String)(implicit kt: K <:< Writable, vt: V <:< Writable ) {
+    val conf = new JobConf(self.context.hadoopConfiguration)
+    conf.set("mapred.output.format.class", classOf[RedisHashOutputFormat].getName)
+    conf.set("spark.redishashoutputformat.hosts", redisHosts)
+    conf.set("spark.redishashinputformat.key", redisHostKey)
+    val job = new NewAPIHadoopJob(conf)
+    job.setOutputKeyClass(classOf[Text])
+    job.setOutputValueClass(classOf[Text])
+    job.setOutputFormatClass(classOf[RedisHashOutputFormat])
+    saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
 
   /**
