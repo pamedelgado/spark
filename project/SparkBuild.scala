@@ -127,7 +127,7 @@ object SparkBuild extends PomBuild {
     retrievePattern := "[type]s/[artifact](-[revision])(-[classifier]).[ext]",
     publishMavenStyle := true,
     unidocGenjavadocVersion := "0.8",
-
+    scalaHome := Some(file("/home/prashant/work/scala/build/pack")),
     resolvers += Resolver.mavenLocal,
     otherResolvers <<= SbtPomKeys.mvnLocalRepository(dotM2 => Seq(Resolver.file("dotM2", dotM2))),
     publishLocalConfiguration in MavenCompile <<= (packagedArtifacts, deliverLocal, ivyLoggingLevel) map {

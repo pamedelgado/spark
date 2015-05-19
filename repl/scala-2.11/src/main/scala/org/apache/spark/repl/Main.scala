@@ -17,12 +17,14 @@
 
 package org.apache.spark.repl
 
-import org.apache.spark.util.Utils
 import org.apache.spark._
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.util.Utils
 
-import scala.tools.nsc.Settings
-import scala.tools.nsc.interpreter.SparkILoop
+import scala.tools.nsc.interpreter._
+import scala.tools.nsc.io.File
+import scala.tools.nsc.{GenericRunnerSettings, Settings}
+import scala.util.Properties._
 
 object Main extends Logging {
 
@@ -30,24 +32,68 @@ object Main extends Logging {
   val tmp = System.getProperty("java.io.tmpdir")
   val rootDir = conf.get("spark.repl.classdir", tmp)
   val outputDir = Utils.createTempDir(rootDir)
+  val replInitFile = s"${outputDir.getAbsoluteFile}/init_repl"
+  File(replInitFile).writeAll(initializeSpark())
   val s = new Settings()
-  s.processArguments(List("-Yrepl-class-based",
-    "-Yrepl-outdir", s"${outputDir.getAbsolutePath}", "-Yrepl-sync"), true)
+  val t = new GenericRunnerSettings(s.errorFn)
+  s.copyInto(t)
+  t.processArgumentString(s"-i $replInitFile -Yrepl-class-based " +
+    s"-Yrepl-outdir ${outputDir.getAbsolutePath}")
+
   val classServer = new HttpServer(conf, outputDir, new SecurityManager(conf))
   var sparkContext: SparkContext = _
   var sqlContext: SQLContext = _
-  var interp = new SparkILoop // this is a public var because tests reset it.
+  var interp = new ILoop {
+    override def printWelcome(): Unit = {
+      import org.apache.spark.SPARK_VERSION
+      println( """Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /___/ .__/\_,_/_/ /_/\_\   version %s
+      /_/
+               """.format(SPARK_VERSION))
+      val welcomeMsg = "Using Scala %s (%s, Java %s)".format(
+        versionString, javaVmName, javaVersion)
+      println(welcomeMsg)
+      println("Type in expressions to have them evaluated.")
+      println("Type :help for more information.")
+      println("[info] started at " + new java.util.Date)
+    }
+  }
+  // this is a public var because tests reset it.
+  var intp = interp.intp
 
-  def main(args: Array[String]) {
+  def initializeSpark() = {
+    """
+      |@transient val sc = {
+      |  val _sc = org.apache.spark.repl.Main.createSparkContext()
+      |  println("Spark context available as sc.")
+      |  _sc
+      |}
+      |
+      |@transient val sqlContext = {
+      |  val _sqlContext = org.apache.spark.repl.Main.createSQLContext()
+      |  println("SQL context available as sqlContext.")
+      |  _sqlContext
+      |}
+      |import org.apache.spark.SparkContext._
+      |import sqlContext.implicits._
+      |import sqlContext.sql
+      |import org.apache.spark.sql.functions._
+    """.stripMargin
+  }
+
+  def main(args: Array[String]): Unit = {
     if (getMaster == "yarn-client") System.setProperty("SPARK_YARN_MODE", "true")
     // Start the classServer and store its URI in a spark system property
     // (which will be passed to executors so that they can connect to it)
+
     classServer.start()
-    interp.process(s) // Repl starts and goes in loop of R.E.P.L
+    interp.process(t) // Repl starts and goes in loop of R.E.P.L
     classServer.stop()
     Option(sparkContext).map(_.stop)
   }
-
 
   def getAddedJars: Array[String] = {
     val envJars = sys.env.get("ADD_JARS")
@@ -84,7 +130,7 @@ object Main extends Logging {
     val loader = Utils.getContextOrSparkClassLoader
     try {
       sqlContext = loader.loadClass(name).getConstructor(classOf[SparkContext])
-        .newInstance(sparkContext).asInstanceOf[SQLContext] 
+        .newInstance(sparkContext).asInstanceOf[SQLContext]
       logInfo("Created sql context (with Hive support)..")
     }
     catch {

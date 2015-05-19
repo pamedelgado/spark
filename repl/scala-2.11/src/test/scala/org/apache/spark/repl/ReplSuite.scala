@@ -22,7 +22,7 @@ import java.net.URLClassLoader
 
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
-import scala.tools.nsc.interpreter.SparkILoop
+import scala.tools.nsc.interpreter.ILoop
 
 import org.scalatest.FunSuite
 import org.apache.commons.lang3.StringEscapeUtils
@@ -55,10 +55,10 @@ class ReplSuite extends FunSuite {
 
     System.setProperty("spark.master", master)
     val interp = {
-      new SparkILoop(in, new PrintWriter(out))
+      new ILoop(in, new PrintWriter(out))
     }
     org.apache.spark.repl.Main.interp = interp
-    Main.s.processArguments(List("-classpath", classpath), true)
+    Main.t.processArguments(List("-classpath", classpath), true)
     Main.main(Array()) // call main
     org.apache.spark.repl.Main.interp = null
 
@@ -84,18 +84,18 @@ class ReplSuite extends FunSuite {
 
   test("propagation of local properties") {
     // A mock ILoop that doesn't install the SIGINT handler.
-    class ILoop(out: PrintWriter) extends SparkILoop(None, out) {
+    class TestILoop(out: PrintWriter) extends ILoop(None, out) {
       settings = new scala.tools.nsc.Settings
       settings.usejavacp.value = true
       org.apache.spark.repl.Main.interp = this
       override def createInterpreter() {
-        intp = new SparkILoopInterpreter
+        intp = new ILoopInterpreter
         intp.setContextClassLoader()
       }
     }
 
     val out = new StringWriter()
-    Main.interp = new ILoop(new PrintWriter(out))
+    Main.interp = new TestILoop(new PrintWriter(out))
     Main.sparkContext = new SparkContext("local", "repl-test")
     Main.interp.createInterpreter()
 
@@ -119,7 +119,7 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res1: Int = 55", output)
+    assertContains("res2: Int = 55", output)
   }
 
   test("external vars") {
@@ -132,8 +132,8 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Int = 70", output)
-    assertContains("res1: Int = 100", output)
+    assertContains("res1: Int = 70", output)
+    assertContains("res2: Int = 100", output)
   }
 
   test("external classes") {
@@ -146,7 +146,7 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Int = 50", output)
+    assertContains("res1: Int = 50", output)
   }
 
   test("external functions") {
@@ -157,7 +157,7 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Int = 110", output)
+    assertContains("res1: Int = 110", output)
   }
 
   test("external functions that access vars") {
@@ -171,8 +171,8 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Int = 70", output)
-    assertContains("res1: Int = 100", output)
+    assertContains("res1: Int = 70", output)
+    assertContains("res2: Int = 100", output)
   }
 
   test("broadcast vars") {
@@ -189,8 +189,8 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Array[Int] = Array(0, 0, 0, 0, 0)", output)
-    assertContains("res2: Array[Int] = Array(5, 0, 0, 0, 0)", output)
+    assertContains("res1: Array[Int] = Array(0, 0, 0, 0, 0)", output)
+    assertContains("res3: Array[Int] = Array(5, 0, 0, 0, 0)", output)
   }
 
   test("interacting with files") {
@@ -210,9 +210,9 @@ class ReplSuite extends FunSuite {
         tempDir.getAbsolutePath + File.separator + "input")))
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Long = 3", output)
     assertContains("res1: Long = 3", output)
     assertContains("res2: Long = 3", output)
+    assertContains("res3: Long = 3", output)
     Utils.deleteRecursively(tempDir)
   }
 
@@ -232,10 +232,10 @@ class ReplSuite extends FunSuite {
       """.stripMargin)
     assertDoesNotContain("error:", output)
     assertDoesNotContain("Exception", output)
-    assertContains("res0: Int = 70", output)
-    assertContains("res1: Int = 100", output)
-    assertContains("res2: Array[Int] = Array(0, 0, 0, 0, 0)", output)
-    assertContains("res4: Array[Int] = Array(0, 0, 0, 0, 0)", output)
+    assertContains("res1: Int = 70", output)
+    assertContains("res2: Int = 100", output)
+    assertContains("res3: Array[Int] = Array(0, 0, 0, 0, 0)", output)
+    assertContains("res5: Array[Int] = Array(0, 0, 0, 0, 0)", output)
   }
 
   test("SPARK-1199 two instances of same class don't type check.") {
@@ -303,10 +303,10 @@ class ReplSuite extends FunSuite {
         """.stripMargin)
       assertDoesNotContain("error:", output)
       assertDoesNotContain("Exception", output)
-      assertContains("res0: Int = 70", output)
-      assertContains("res1: Int = 100", output)
-      assertContains("res2: Array[Int] = Array(0, 0, 0, 0, 0)", output)
-      assertContains("res4: Array[Int] = Array(0, 0, 0, 0, 0)", output)
+      assertContains("res1: Int = 70", output)
+      assertContains("res2: Int = 100", output)
+      assertContains("res3: Array[Int] = Array(0, 0, 0, 0, 0)", output)
+      assertContains("res5: Array[Int] = Array(0, 0, 0, 0, 0)", output)
     }
   }
 
