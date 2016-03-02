@@ -127,10 +127,10 @@ private[spark] class SparrowScheduler(val sc: SparkContext,
   // on task listener.
 
   override def frontendMessage(taskId: TFullTaskId, statusInt: Int, message: ByteBuffer) = synchronized {
+    logInfo(s"got frontend msg taskId $taskId, $statusInt")
     TaskState.apply(statusInt) match {
       case TaskState.FINISHED =>
         val result = ser.deserialize[DirectTaskResult[_]](message, getClass.getClassLoader)
-
         // FIXME: get this information from Sparrow, rather than fudging it.
         val taskInfo = new TaskInfo(
           taskId.getTaskId.toLong,
@@ -140,6 +140,8 @@ private[spark] class SparrowScheduler(val sc: SparkContext,
           "dummyexecId",
           "foo:bar",
           TaskLocality.PROCESS_LOCAL,conf.getBoolean("spark.speculation", false))
+        taskInfo.finishTime = System.currentTimeMillis
+        taskInfo.failed = false
         dagScheduler.taskEnded(
           tidToTask(taskId.getTaskId()),
           Success,
