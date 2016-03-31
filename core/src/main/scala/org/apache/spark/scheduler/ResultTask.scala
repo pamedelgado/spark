@@ -57,6 +57,13 @@ private[spark] class ResultTask[T, U](
     if (locs == null) Nil else locs.toSet.toSeq
   }
 
+  def getRDD(): RDD[T] = {
+    val ser = SparkEnv.get.closureSerializer.newInstance()
+    val (rdd, func) = ser.deserialize[(RDD[T], (TaskContext, Iterator[T]) => U)](
+      ByteBuffer.wrap(taskBinary.value), Thread.currentThread.getContextClassLoader)
+    rdd
+  }
+  
   override def runTask(context: TaskContext): U = {
     // Deserialize the RDD and the func using the broadcast variables.
     val deserializeStartTime = System.currentTimeMillis()

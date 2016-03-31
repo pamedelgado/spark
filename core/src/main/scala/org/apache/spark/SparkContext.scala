@@ -66,6 +66,7 @@ import org.apache.spark.ui.{ConsoleProgressBar, SparkUI}
 import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.util._
 import org.apache.spark.scheduler.sparrow.{SparrowSchedulerBackend, SparrowScheduler}
+import org.apache.spark.scheduler.eagle.{EagleSchedulerBackend, EagleScheduler}
 
 /**
  * Main entry point for Spark functionality. A SparkContext represents the connection to a Spark
@@ -2362,6 +2363,12 @@ object SparkContext extends Logging {
         scheduler.initialize(backend)
         (backend, scheduler)
 
+      case EAGLE_REGEX(host, port) =>
+        val scheduler = new EagleScheduler(sc, host, port, System.getProperty("eagle.app.name", "spark"))
+        val backend = new EagleSchedulerBackend(scheduler)
+        scheduler.initialize(backend)
+        (backend, scheduler)
+
       case LOCAL_CLUSTER_REGEX(numSlaves, coresPerSlave, memoryPerSlave) =>
         // Check to make sure memory requested <= memoryPerSlave. Otherwise Spark will just hang.
         val memoryPerSlaveInt = memoryPerSlave.toInt
@@ -2474,7 +2481,8 @@ private object SparkMasterRegex {
   // Regular expression for connecting to a Sparrow cluster.
   // TODO: Parse the backups and include them for fault tolerance!
   val SPARROW_REGEX = """sparrow@([A-Za-z0-9\.]+):([0-9]+)[,.*]*""".r
-
+  
+  val EAGLE_REGEX = """sparrow@([A-Za-z0-9\.]+):([0-9]+)[,.*]*""".r
 }
 
 /**
