@@ -2482,7 +2482,7 @@ private object SparkMasterRegex {
   // TODO: Parse the backups and include them for fault tolerance!
   val SPARROW_REGEX = """sparrow@([A-Za-z0-9\.]+):([0-9]+)[,.*]*""".r
   
-  val EAGLE_REGEX = """sparrow@([A-Za-z0-9\.]+):([0-9]+)[,.*]*""".r
+  val EAGLE_REGEX = """eagle@([A-Za-z0-9\.]+):([0-9]+)[,.*]*""".r
 }
 
 /**

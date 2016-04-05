@@ -1,4 +1,8 @@
 /*
+ * EAGLE 
+ *
+ * Copyright 2016 Operating Systems Laboratory EPFL
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -53,8 +57,7 @@ class EagleExecutorBackend(driverUrl: String,
     cores: Int,
     env: SparkEnv)
   extends ExecutorBackend with Logging with BackendService.Iface with ThreadSafeRpcEndpoint {
-  private val executor: Executor = new Executor(
-    env.executorId, Utils.localHostName, env)
+  private val executor: Executor = new Executor(env.executorId, Utils.localHostName, env)
 
   override def onStart() {
     logInfo("Connecting to driver: " + driverUrl)
@@ -161,13 +164,10 @@ object EagleExecutorBackend extends Logging {
     // Bootstrap to fetch the driver's Spark properties.
     val executorConf = new SparkConf
     val port = executorConf.getInt("spark.executor.port", 0)
-    val fetcher = RpcEnv.create(
-      "driverPropsFetcher",
-      hostname,
-      port,
-      executorConf,
-      new SecurityManager(executorConf),
-      clientMode = true)
+    val fetcher = RpcEnv.create("driverPropsFetcher", hostname, port, executorConf, new SecurityManager(executorConf), clientMode = true)
+      
+    logInfo("EagleExecutorBackend started, fetcher will get driver "+driverUrl)
+    
     val driver = fetcher.setupEndpointRefByURI(driverUrl)
     val props = driver.askWithRetry[Seq[(String, String)]](RetrieveSparkProps) ++
       Seq[(String, String)](("spark.app.id", appId))

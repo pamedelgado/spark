@@ -18,6 +18,7 @@
 package org.apache.spark.examples;
 
 import org.apache.spark.scheduler.eagle.EagleTriple;
+import org.apache.spark.scheduler.eagle.EagleProperties$;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
@@ -57,6 +58,9 @@ public class JavaSleep {
     List<EagleTriple<Integer,Boolean,Double>> l = new ArrayList<EagleTriple<Integer,Boolean,Double>>(tasks);
     for (int i = 0; i < tasks; i++)
     	l.add(new EagleTriple(jts.taskRTs.get(i),jobType.equals("small"), (double)jts.estimate));
+    
+    ctx.setLocalProperty(EagleProperties$.MODULE$.EAGLE_JOB_ESTIMATED_RUNTIME(),Integer.toString(jts.estimate));
+    ctx.setLocalProperty(EagleProperties$.MODULE$.EAGLE_JOB_SHORT(),""+jobType.equals("small"));
 
     JavaRDD<EagleTriple<Integer,Boolean,Double>> dataSet = ctx.parallelize(l, tasks);
 
@@ -87,7 +91,8 @@ public class JavaSleep {
 
     final JavaSparkContext ctx = new JavaSparkContext(master,hostname,System.getenv("SPARK_HOME"), System.getenv("SPARK_EXAMPLES_JAR"));
 
-    Thread.sleep(10000);
+	System.out.println("SparkContext created, waiting for Executors to get started!!");
+    Thread.sleep(60000);
 
     BufferedReader br = new BufferedReader(new FileReader(jobDescription));
     String line="";

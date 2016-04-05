@@ -1,4 +1,8 @@
 /*
+ * EAGLE 
+ *
+ * Copyright 2016 Operating Systems Laboratory EPFL
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -45,8 +49,8 @@ import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SchedulingMode.SchedulingMode
 
 private[spark] class EagleScheduler(val sc: SparkContext,
-                                      host: String, port: String, frameworkName: String)
-  extends TaskScheduler with FrontendService.Iface with Logging {
+                                    host: String, port: String, frameworkName: String)
+    extends TaskScheduler with FrontendService.Iface with Logging {
   private var backend: SchedulerBackend = null
 
   val conf = sc.conf
@@ -56,8 +60,8 @@ private[spark] class EagleScheduler(val sc: SparkContext,
 
   // Mapping of task ids to Tasks because we need to pass a Task back to the listener on task end.
   private val tidToTask = new HashMap[String, Task[_]]()
-  private val requestsStartedTime = new HashMap[String,Long]()
-  private val requestsShortTaskDuration = new HashMap[String,Pair[Boolean,Double]]()
+  private val requestsStartedTime = new HashMap[String, Long]()
+  private val requestsShortTaskDuration = new HashMap[String, Pair[Boolean, Double]]()
 
   private var ser = SparkEnv.get.closureSerializer.newInstance()
 
@@ -68,9 +72,9 @@ private[spark] class EagleScheduler(val sc: SparkContext,
   override def submitTasks(taskSet: TaskSet) = synchronized {
     val tasks = taskSet.tasks
     logInfo("Adding task set " + taskSet.id + " with " + tasks.length + " tasks")
-    val eagleTasks = ((1 to tasks.length ) zip tasks).map(t => {
+    val eagleTasks = ((1 to tasks.length) zip tasks).map(t => {
       val spec = new TTaskSpec
-      spec.setPreference{
+      spec.setPreference {
         val placement = new TPlacementPreference
         t._2.preferredLocations.foreach(p => placement.addToNodes(p.host))
         placement
@@ -96,42 +100,16 @@ private[spark] class EagleScheduler(val sc: SparkContext,
         "%s-%s".format(sparkJobDescription, taskSet.stageId)
       }
     }
-
-    // [[ PAMELA : trying to get something from RDD
-    val defaultShortJob = new java.lang.Boolean(true)
-    val defaultEstimatedDuration = new java.lang.Double(0.0)
-    //TO DELETE
-    //val shortJob = defaultShortJob
-    //val estimatedDuration = defaultEstimatedDuration
-    logInfo("EagleScheduler submitTasks " + taskSet.tasks.head.getClass)
+    
+    val shortJob = taskSet.properties.getProperty(EagleProperties.EAGLE_JOB_SHORT, EagleProperties.EAGLE_DEFAULT_JOB_SHORT) //new java.lang.Boolean(true)
+    val estimatedDuration = taskSet.properties.getProperty(EagleProperties.EAGLE_JOB_ESTIMATED_RUNTIME, EagleProperties.EAGLE_DEFAULT_JOB_ESTIMATED_RUNTIME) //new java.lang.Double(0.0)
+    
     val tasksHead = taskSet.tasks.head
-    val (shortJob,estimatedDuration) = tasksHead match {
-      /*case stm: ShuffleMapTask =>
-        logInfo("EagleScheduler taskshead is ShuffleMapTask ")
-        stm.rdd match {
-          case mp : MapPartitionsRDD[_,_] =>
-           /* logInfo("EagleScheduler MapPartitionsRDD " + mp.getDependencies.head+ " head of dependencies rdd "+mp.getDependencies.head.asInstanceOf[OneToOneDependency[_]].rdd+"")
-            val mappedRDD = mp.getDependencies.head.asInstanceOf[OneToOneDependency[_]].rdd.asInstanceOf[MappedRDD[_,_]]
-            logInfo("mappedRDD")
-            val rddDependency = mappedRDD.getDependencies.head.asInstanceOf[OneToOneDependency[_]].rdd
-            logInfo("mappedRDD dependency "+rddDependency.getClass())
-            val flatmappedrdd = rddDependency.asInstanceOf[FlatMappedRDD[_,_]].getDependencies.head.asInstanceOf[OneToOneDependency[_]].rdd
-            logInfo("flatmappedrdd dependency "+flatmappedrdd.getClass())
-            val headDependencyMappedInnerRDD = flatmappedrdd.asInstanceOf[MappedRDD[_,_]].getDependencies.head.asInstanceOf[OneToOneDependency[_]].rdd
-            logInfo("mappedrdd dependency "+headDependencyMappedInnerRDD.getClass())
-            val hadooprdd = headDependencyMappedInnerRDD.asInstanceOf[HadoopRDD[_,_]]*/
-            logInfo("ShuffleMapTask, not supported " + mp.getClass+" going for default values")
-            (defaultShortJob, defaultEstimatedDuration)
-          case notSupported => // rddDependency types not supported
-                logInfo("Not ParallelCollectionRDD, not cased " + notSupported.getClass+" going for default values")
-                 (defaultShortJob, defaultEstimatedDuration)
-        }*/
-      case rtm: ResultTask[_, _] =>
-        logInfo("EagleScheduler taskshead is ResultTask ")
-        val rtm_rdd = rtm.getRDD()
-        logInfo("EagleScheduler rdd " + rtm_rdd + " rdd class "+rtm_rdd.getClass())
-        (defaultShortJob, defaultEstimatedDuration)
-        /* rtm_rdd match {
+    // [[ PAMELA : trying to get something from RDD
+      /*    logInfo("EagleScheduler submitTasks " + taskSet.tasks.head.getClass)
+		val (shortJob, estimatedDuration) = tasksHead match {
+
+    rtm_rdd match {
          case mrdd: MappedRDD[_, _] =>
            logInfo("EagleScheduler LIST DEPENDENCIES!!")
            mrdd.getDependencies.foreach { dependency =>  logInfo(" Dependency rdd"+dependency.rdd+" class "+dependency.rdd.getClass)}//" onetoone rdd"+dependency.rdd.asInstanceOf[OneToOneDependency[_]].rdd)}
@@ -152,22 +130,17 @@ private[spark] class EagleScheduler(val sc: SparkContext,
           case notSupported => // original RDD not supported
             logInfo("Not MappedRDD, not cased " + notSupported.getClass+" going for default values")
             (defaultShortJob, defaultEstimatedDuration)
-         }  */     
-      case notSupported => // Not Shuffle not Result, not supported
-        logInfo("Not ResultTask or ShuffleMapTask, not cased "+ notSupported.getClass)
-        (defaultShortJob, defaultEstimatedDuration)
-    }
+         }  */
+
     val startTime = System.nanoTime
-    requestsStartedTime(taskId.get().toString())=startTime
-    logInfo("Request from stage "+tasksHead.stageId +" taskid "+taskId+" start elapsed time: "+ startTime+" shortJob " + shortJob + " estimatedDuration "+estimatedDuration)
-    requestsStartedTime.foreach(st => logDebug("RequestsStartedTime "+st.toString()))
-    //
-    
+    requestsStartedTime(taskId.get().toString()) = startTime
+    logInfo("Request from stage " + tasksHead.stageId + " taskid " + taskId + " start elapsed time: " + startTime + " shortJob " + shortJob + " estimatedDuration " + estimatedDuration)
+    requestsStartedTime.foreach(st => logDebug("RequestsStartedTime " + st.toString()))
 
     new Thread(new Runnable() {
       override def run() {
-         client.submitJob(frameworkName, eagleTasks.toList, shortJob.asInstanceOf[java.lang.Boolean], estimatedDuration.asInstanceOf[java.lang.Double], user, description)
-         logInfo("Submitted taskSet with id=%s time=%s".format(taskSet.id, System.currentTimeMillis))
+        client.submitJob(frameworkName, eagleTasks.toList, new java.lang.Boolean(shortJob), new java.lang.Double(estimatedDuration), user, description)
+        logInfo("Submitted taskSet with id=%s time=%s".format(taskSet.id, System.currentTimeMillis))
       }
     }).start()
   }
@@ -212,7 +185,7 @@ private[spark] class EagleScheduler(val sc: SparkContext,
           System.currentTimeMillis,
           "dummyexecId",
           "foo:bar",
-          TaskLocality.PROCESS_LOCAL,conf.getBoolean("spark.speculation", false))
+          TaskLocality.PROCESS_LOCAL, conf.getBoolean("spark.speculation", false))
         taskInfo.finishTime = System.currentTimeMillis
         taskInfo.failed = false
         dagScheduler.taskEnded(
@@ -221,15 +194,15 @@ private[spark] class EagleScheduler(val sc: SparkContext,
           result.value,
           result.accumUpdates,
           taskInfo)
-          
-        if(requestsStartedTime.contains(taskId.getRequestId())){
+
+        if (requestsStartedTime.contains(taskId.getRequestId())) {
           val startedTime = requestsStartedTime(taskId.getRequestId())
           val finishedTime = System.nanoTime()
-          logInfo("Finished request from requestid "+taskId.getRequestId() +" taskid "+taskId.getTaskId+" finish elapsed time: "+ finishedTime)
-          logInfo("Total time from submission to finishing stage in milliseconds "+((finishedTime-startedTime)/1000000))
-        } else{
-          logDebug("Finished request NOT FOUND requestid "+taskId.getRequestId() +" taskid "+taskId.getTaskId)
-          requestsStartedTime.foreach(st => logDebug("RequestsStartedTime "+st.toString()))
+          logInfo("Finished request from requestid " + taskId.getRequestId() + " taskid " + taskId.getTaskId + " finish elapsed time: " + finishedTime)
+          logInfo("Total time from submission to finishing stage in milliseconds " + ((finishedTime - startedTime) / 1000000))
+        } else {
+          logDebug("Finished request NOT FOUND requestid " + taskId.getRequestId() + " taskid " + taskId.getTaskId)
+          requestsStartedTime.foreach(st => logDebug("RequestsStartedTime " + st.toString()))
         }
 
       case status =>
@@ -244,33 +217,34 @@ private[spark] class EagleScheduler(val sc: SparkContext,
   }
 
   /**
-    * Get an application's attempt ID associated with the job.
-    *
-    * @return An application's Attempt ID
-    */
+   * Get an application's attempt ID associated with the job.
+   *
+   * @return An application's Attempt ID
+   */
   override def applicationAttemptId(): Option[String] = {
     Some("fake-attempt-ID") // FIXME: get real ID here.
   }
 
   /**
-    * Process a lost executor
-    */
+   * Process a lost executor
+   */
   override def executorLost(executorId: String, reason: ExecutorLossReason): Unit = {
     // noop. //fixme
   }
 
   /**
-    * Update metrics for in-progress tasks and let the master know that the BlockManager is still
-    * alive. Return true if the driver knows about the given block manager. Otherwise, return false,
-    * indicating that the block manager should re-register.
-    */
+   * Update metrics for in-progress tasks and let the master know that the BlockManager is still
+   * alive. Return true if the driver knows about the given block manager. Otherwise, return false,
+   * indicating that the block manager should re-register.
+   */
   override def executorHeartbeatReceived(
-                                          execId: String,
-                                          accumUpdates: Array[(Long, Seq[AccumulableInfo])],
-                                          blockManagerId: BlockManagerId): Boolean = {
+    execId: String,
+    accumUpdates: Array[(Long, Seq[AccumulableInfo])],
+    blockManagerId: BlockManagerId): Boolean = {
     // (taskId, stageId, stageAttemptId, accumUpdates)
     val accumUpdatesWithTaskIds: Array[(Long, Int, Int, Seq[AccumulableInfo])] = synchronized {
-      accumUpdates.flatMap { case (id, updates) =>
+      accumUpdates.flatMap {
+        case (id, updates) =>
           Seq((id, -1, -1, updates)) // FIXME Fudged values.
       }
     }
