@@ -1764,12 +1764,14 @@ class SparkContext(config: SparkConf) extends Logging with ExecutorAllocationCli
     }
     val callSite = getCallSite
     val cleanedFunc = clean(func)
+    val start = System.nanoTime
     logInfo("Starting job: " + callSite.shortForm)
     if (conf.getBoolean("spark.logLineage", false)) {
       logInfo("RDD's recursive dependencies:\n" + rdd.toDebugString)
     }
     dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, resultHandler, localProperties.get)
     progressBar.foreach(_.finishAll())
+    logInfo("Job finished: " + callSite.shortForm + ", took " + (System.nanoTime - start) / 1e9 + " s")
     rdd.doCheckpoint()
   }
 
